@@ -50,6 +50,10 @@ def _make_primary_llm() -> ChatOpenAI:
         openai_api_base=settings.openrouter_base_url,
         openai_api_key=settings.openrouter_api_key,
         streaming=True,
+        default_headers={
+            "HTTP-Referer": "https://vetvision.app",
+            "X-Title": "VetVision",
+        },
     )
 
 
@@ -87,7 +91,9 @@ def agent_node(state: AgentState) -> AgentState:
 
     # Primary LLM
     try:
+        logger.info("[User Agent] Invoking primary LLM (OpenRouter): %s", settings.openrouter_model)
         response = _primary_llm_with_tools.invoke(messages_to_send)
+        logger.info("[User Agent] Primary LLM response received, length=%d", len(response.content) if response.content else 0)
         return {"messages": [response]}
     except Exception as exc:
         logger.warning(

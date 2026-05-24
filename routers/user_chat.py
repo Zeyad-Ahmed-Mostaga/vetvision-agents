@@ -74,6 +74,9 @@ async def chat(request: ChatRequest):
             yield f": {' ' * 8192}\n\n"
             await asyncio.sleep(0)
 
+            chunk_count = 0
+            logger.info("[User Stream] Starting to stream from %s...", settings.openrouter_model)
+
             async for msg_chunk, metadata in agent.astream(
                 {"messages": [("user", request.message)]},
                 config=config,
@@ -89,9 +92,16 @@ async def chat(request: ChatRequest):
 
                 payload = json.dumps({"type": "token", "content": msg_chunk.content}, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
-                
+                chunk_count += 1
+
+                # Log every 10th chunk to track streaming progress
+                if chunk_count % 10 == 0:
+                    logger.info("[User Stream] Streamed %d chunks so far", chunk_count)
+
                 # Force event loop to flush the chunk immediately
                 await asyncio.sleep(0)
+
+            logger.info("[User Stream] Completed with %d chunks", chunk_count)
 
             done_payload = json.dumps({"type": "done", "thread_id": thread_id}, ensure_ascii=False)
             yield f"data: {done_payload}\n\n"
