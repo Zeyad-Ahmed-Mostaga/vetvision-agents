@@ -86,7 +86,7 @@ class Settings:
     jina_dimensions:      int = 1024
 
     # ── Qdrant Mode ───────────────────────────────────────────────────────────
-    qdrant_mode:          str = field(default_factory=lambda: _optional("QDRANT_MODE", "local").lower())
+    qdrant_mode:          str = field(default_factory=lambda: _optional("QDRANT_MODE", "cloud").lower())
 
     # ── Qdrant Cloud (primary) ────────────────────────────────────────────────
     qdrant_cloud_url:     str = field(default_factory=lambda: _optional("QDRANT_CLOUD_URL"))
