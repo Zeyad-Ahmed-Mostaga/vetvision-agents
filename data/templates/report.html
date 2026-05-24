@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تقرير طبي بيطري — VetVision</title>
+<style>
+/* ── Google Font: Noto Sans Arabic — loaded via CDN (requires internet at generation time) ── */
+/* If offline, falls back to system Arabic fonts */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
+/* ── Design Tokens ── */
+:root {
+  --teal:        #00695C;
+  --teal-dark:   #004D40;
+  --teal-mid:    #00897B;
+  --teal-light:  #B2DFDB;
+  --teal-bg:     #E0F2F1;
+  --gold:        #C9A96E;
+  --gold-light:  #F0E0C0;
+  --text-dark:   #1A1A2E;
+  --text-mid:    #37474F;
+  --text-muted:  #78909C;
+  --white:       #FFFFFF;
+  --bg-page:     #F8FAFA;
+  --bg-section:  #FAFCFC;
+  --border:      #CFE6E3;
+  --radius:      8px;
+  --radius-lg:   12px;
+  --font:        'Noto Sans Arabic', 'Arial', 'Tahoma', sans-serif;
+}
+
+/* ── Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: var(--font);
+  background: var(--bg-page);
+  color: var(--text-dark);
+  font-size: 11pt;
+  line-height: 1.7;
+  direction: rtl;
+}
+
+/* ── Page wrapper ── */
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: var(--white);
+  position: relative;
+}
+
+/* ═══════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════ */
+.header {
+  background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 60%, var(--teal-mid) 100%);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative circles */
+.header::before {
+  content: '';
+  position: absolute;
+  top: -30px; left: -30px;
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+}
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -20px; right: -20px;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 14px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Left side: English brand */
+.brand-en {
+  text-align: left;
+  direction: ltr;
+}
+.brand-en .logo-text {
+  font-size: 26pt;
+  font-weight: 700;
+  color: var(--white);
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.brand-en .logo-sub {
+  font-size: 8pt;
+  color: var(--teal-light);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Divider */
+.header-divider {
+  width: 1px;
+  height: 50px;
+  background: rgba(255,255,255,0.25);
+  margin: 0 20px;
+}
+
+/* Right side: Arabic brand */
+.brand-ar {
+  text-align: right;
+}
+.brand-ar .logo-text-ar {
+  font-size: 18pt;
+  font-weight: 700;
+  color: var(--white);
+  line-height: 1.2;
+}
+.brand-ar .logo-sub-ar {
+  font-size: 9pt;
+  color: var(--teal-light);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* Gold accent bar */
+.header-gold-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 50%, var(--gold) 100%);
+}
+
+/* Teal accent bar */
+.header-teal-bar {
+  height: 4px;
+  background: linear-gradient(90deg, var(--teal-mid), var(--teal-dark));
+}
+
+/* ═══════════════════════════════════════════
+   BODY CONTENT
+═══════════════════════════════════════════ */
+.content {
+  padding: 20px 24px 16px;
+}
+
+/* ── Section Header ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, var(--teal) 0%, var(--teal-mid) 100%);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  margin: 16px 0 10px;
+}
+.section-header .sec-ar {
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--white);
+}
+.section-header .sec-en {
+  font-size: 9pt;
+  font-weight: 400;
+  color: var(--teal-light);
+  direction: ltr;
+  letter-spacing: 0.3px;
+}
+
+/* ── Info Grid (Patient Info) ── */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--white);
+}
+
+.info-cell {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.info-cell:nth-child(odd) {
+  border-left: 1px solid var(--border);
+}
+.info-cell:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+.info-cell .label {
+  font-size: 7.5pt;
+  font-weight: 600;
+  color: var(--teal-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.info-cell .value {
+  font-size: 11pt;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+/* ── Diagnosis & Treatment block ── */
+.diag-block {
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.diag-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.diag-row:last-child { border-bottom: none; }
+
+.diag-icon {
+  font-size: 14pt;
+  margin-left: 10px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.diag-text {}
+.diag-text .diag-label {
+  font-size: 8pt;
+  color: var(--teal-dark);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+.diag-text .diag-value-ar {
+  font-size: 12pt;
+  font-weight: 600;
+  color: var(--text-dark);
+  line-height: 1.5;
+}
+.diag-text .diag-value-en {
+  font-size: 9pt;
+  color: var(--text-muted);
+  direction: ltr;
+  text-align: left;
+  margin-top: 2px;
+}
+
+/* ── Content section body ── */
+.section-body {
+  background: var(--bg-section);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  font-size: 11pt;
+  color: var(--text-mid);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* bullet points inside content */
+.section-body li, .section-body p { margin-bottom: 4px; }
+
+/* ── Doctor notes (special styling) ── */
+.doctor-notes-box {
+  background: var(--gold-light);
+  border: 1.5px solid var(--gold);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  font-size: 11pt;
+  color: var(--text-dark);
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+/* ── Doctor Signature ── */
+.signature-section {
+  margin-top: 20px;
+  border-top: 2px solid var(--teal-mid);
+  padding-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.sig-info {}
+.sig-info .sig-title {
+  font-size: 9pt;
+  color: var(--teal-dark);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.sig-info .sig-name {
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-top: 4px;
+}
+.sig-info .sig-id {
+  font-size: 9pt;
+  color: var(--text-muted);
+  direction: ltr;
+  text-align: left;
+}
+.sig-line {
+  text-align: left;
+  direction: ltr;
+}
+.sig-line .sig-line-label {
+  font-size: 8pt;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  display: block;
+}
+.sig-line .sig-underline {
+  border-bottom: 1.5px solid var(--text-mid);
+  width: 140px;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════ */
+.footer {
+  margin-top: 16px;
+}
+.footer-bars {
+  display: flex;
+  flex-direction: column;
+}
+.footer-bar-teal {
+  height: 3px;
+  background: linear-gradient(90deg, var(--teal-dark), var(--teal-mid));
+}
+.footer-bar-gold {
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+}
+.footer-text {
+  text-align: center;
+  padding: 8px 24px 10px;
+  background: var(--bg-section);
+}
+.footer-text .footer-line1 {
+  font-size: 7.5pt;
+  color: var(--text-muted);
+  direction: ltr;
+}
+.footer-text .footer-line2 {
+  font-size: 8pt;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* ── Print / PDF overrides ── */
+@media print {
+  body { background: white; }
+  .page {
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+  }
+  .section-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .header         { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .header-gold-bar{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .diag-block     { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .doctor-notes-box{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <div class="header-inner">
+      <!-- English left -->
+      <div class="brand-en">
+        <div class="logo-text">VetVision</div>
+        <div class="logo-sub">Professional Veterinary Medical Report</div>
+      </div>
+      <div class="header-divider"></div>
+      <!-- Arabic right -->
+      <div class="brand-ar">
+        <div class="logo-text-ar">فيت فيجن</div>
+        <div class="logo-sub-ar">تقرير طبي بيطري احترافي</div>
+      </div>
+    </div>
+  </div>
+  <div class="header-gold-bar"></div>
+  <div class="header-teal-bar"></div>
+
+  <!-- ═══ BODY ═══ -->
+  <div class="content">
+
+    <!-- ── 1. Patient Information ── -->
+    <div class="section-header">
+      <span class="sec-ar">معلومات المريض</span>
+      <span class="sec-en">Patient Information</span>
+    </div>
+    <div class="info-grid">
+      <div class="info-cell">
+        <span class="label">اسم الحيوان</span>
+        <span class="value">{{ report.animal_name }}</span>
+      </div>
+      <div class="info-cell">
+        <span class="label">نوع الحيوان</span>
+        <span class="value">{{ report.animal_type }}</span>
+      </div>
+      <div class="info-cell">
+        <span class="label">اسم المالك</span>
+        <span class="value">{{ report.owner_name }}</span>
+      </div>
+      <div class="info-cell">
+        <span class="label">الوزن</span>
+        <span class="value">{{ report.weight_kg }} كجم</span>
+      </div>
+      <div class="info-cell">
+        <span class="label">تاريخ الزيارة</span>
+        <span class="value">{{ report.visit_date }}</span>
+      </div>
+      <div class="info-cell">
+        <span class="label">رقم التقرير</span>
+        <span class="value" style="font-family:monospace;font-size:9pt;direction:ltr;text-align:left">{{ report.report_id }}</span>
+      </div>
+    </div>
+
+    <!-- ── 2. Diagnosis & Treatment ── -->
+    <div class="section-header">
+      <span class="sec-ar">التشخيص والعلاج</span>
+      <span class="sec-en">Diagnosis &amp; Treatment</span>
+    </div>
+    <div class="diag-block">
+      <div class="diag-row">
+        <div class="diag-icon">🔬</div>
+        <div class="diag-text">
+          <div class="diag-label">التشخيص</div>
+          <div class="diag-value-ar">{{ report.diagnosis_ar }}</div>
+          <div class="diag-value-en">{{ report.diagnosis_en }}</div>
+        </div>
+      </div>
+      <div class="diag-row">
+        <div class="diag-icon">💊</div>
+        <div class="diag-text">
+          <div class="diag-label">العلاج</div>
+          <div class="diag-value-ar">{{ report.treatment_ar }}</div>
+          <div class="diag-value-en">{{ report.treatment_en }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 3. About This Condition ── -->
+    <div class="section-header">
+      <span class="sec-ar">نبذة عن الحالة</span>
+      <span class="sec-en">About This Condition</span>
+    </div>
+    <div class="section-body">{{ report.content.overview }}</div>
+
+    <!-- ── 4. Symptoms to Watch ── -->
+    <div class="section-header">
+      <span class="sec-ar">أعراض يجب مراقبتها في المنزل</span>
+      <span class="sec-en">Symptoms to Monitor</span>
+    </div>
+    <div class="section-body">{{ report.content.symptoms }}</div>
+
+    <!-- ── 5. Home Care ── -->
+    <div class="section-header">
+      <span class="sec-ar">تعليمات العناية المنزلية</span>
+      <span class="sec-en">Home Care Instructions</span>
+    </div>
+    <div class="section-body">{{ report.content.home_care }}</div>
+
+    <!-- ── 6. Prevention Tips ── -->
+    <div class="section-header">
+      <span class="sec-ar">نصائح للوقاية</span>
+      <span class="sec-en">Prevention Tips</span>
+    </div>
+    <div class="section-body">{{ report.content.prevention }}</div>
+
+    <!-- ── 7. Medication Info ── -->
+    <div class="section-header">
+      <span class="sec-ar">معلومات الدواء</span>
+      <span class="sec-en">Medication &amp; Pharmacotherapy</span>
+    </div>
+    <div class="section-body">{{ report.content.medication_info }}</div>
+
+    <!-- ── 8. Doctor Notes (conditional) ── -->
+    {% if report.content.doctor_notes %}
+    <div class="section-header">
+      <span class="sec-ar">ملاحظات الطبيب</span>
+      <span class="sec-en">Doctor's Notes</span>
+    </div>
+    <div class="doctor-notes-box">{{ report.content.doctor_notes }}</div>
+    {% endif %}
+
+    <!-- ── 9. Doctor Signature ── -->
+    <div class="signature-section">
+      <div class="sig-info">
+        <div class="sig-title">الطبيب البيطري المعالج</div>
+        <div class="sig-name">د. {{ report.doctor_name }}</div>
+      </div>
+      <div class="sig-line">
+        <span class="sig-line-label">التوقيع / Signature</span>
+        <span class="sig-underline"></span>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- ═══ FOOTER ═══ -->
+  <div class="footer">
+    <div class="footer-bars">
+      <div class="footer-bar-teal"></div>
+      <div class="footer-bar-gold"></div>
+    </div>
+    <div class="footer-text">
+      <div class="footer-line1">
+        Generated by VetVision AI Copilot &nbsp;|&nbsp; {{ report.generated_at }} &nbsp;|&nbsp; Report ID: {{ report.report_id }}
+      </div>
+      <div class="footer-line2">
+        هذا التقرير مُنشأ بمساعدة الذكاء الاصطناعي ويجب مراجعته من قبل الطبيب البيطري المعالج
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+</body>
+</html>

@@ -1,0 +1,45 @@
+# Environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Data — exclude large runtime files, keep directory structure
+data/qdrant_db/
+data/patients.db
+data/reports/
+data/indexing_checkpoint.pkl
+
+# Keep templates and fonts (small, needed for reports)
+!data/templates/
+!data/fonts/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+test_ui.html
+data/fonts/

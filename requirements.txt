@@ -1,0 +1,45 @@
+# ── Web framework ─────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# ── LangChain core ────────────────────────────────────────────────────────────
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.2.0
+langchain-text-splitters>=0.2.0
+
+# ── LLM providers ─────────────────────────────────────────────────────────────
+langchain-groq>=0.1.6
+langchain-openai>=0.1.8
+langchain-google-genai>=1.0.6        # User Agent: Gemini fallback LLM
+
+# ── Vector store ──────────────────────────────────────────────────────────────
+langchain-qdrant>=0.1.3
+qdrant-client>=1.9.0
+
+# ── Reranking ─────────────────────────────────────────────────────────────────
+langchain-cohere>=0.1.9
+cohere>=5.5.0
+langchain-classic>=1.0.0
+
+# ── Web search ────────────────────────────────────────────────────────────────
+langchain-tavily>=0.1.0
+
+# ── Agent graph ───────────────────────────────────────────────────────────────
+langgraph>=0.2.0
+
+# ── Database (Vet Copilot — SQLite patient records) ───────────────────────────
+sqlalchemy>=2.0.0
+
+# ── PDF generation (Vet Copilot — Playwright pipeline) ───────────────────────
+playwright>=1.44.0       # Chromium-based PDF: native Arabic RTL, full CSS3
+jinja2>=3.1.0            # HTML template engine for report layout
+
+# ── PDF extraction (indexing scripts — add_pdf.py) ───────────────────────────
+# (PyMuPDF removed for HF Spaces deployment to save space)
+# ── Config & utilities ────────────────────────────────────────────────────────
+python-dotenv>=1.0.1
+
+# ── Numeric (pin below 2.0 for compatibility with LangChain/Qdrant) ──────────
+numpy<2.0.0
