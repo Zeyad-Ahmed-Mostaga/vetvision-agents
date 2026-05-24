@@ -71,7 +71,7 @@ async def chat(request: ChatRequest):
     async def event_generator():
         try:
             # Padding to bypass Cloudflare/NGINX initial buffering
-            yield f": {' ' * 2048}\n\n"
+            yield f": {' ' * 8192}\n\n"
             await asyncio.sleep(0)
 
             async for msg_chunk, metadata in agent.astream(
