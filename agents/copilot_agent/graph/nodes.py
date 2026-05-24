@@ -163,10 +163,6 @@ def _make_llm() -> ChatOpenAI:
         openai_api_base=settings.openrouter_base_url,
         openai_api_key=settings.openrouter_api_key,
         streaming=True,
-        default_headers={
-            "HTTP-Referer": "https://vetvision.app",
-            "X-Title": "VetVision",
-        },
     )
 
 
@@ -214,9 +210,7 @@ def router_node(state: CopilotState) -> dict:
 
     # Call LLM
     try:
-        logger.info("[Vet Copilot] Invoking LLM (OpenRouter): %s", settings.openrouter_model)
         response = _get_llm_with_tools().invoke(messages_to_send)
-        logger.info("[Vet Copilot] LLM response received, length=%d", len(response.content) if response.content else 0)
         return {"messages": [response]}
     except Exception as exc:
         logger.error(

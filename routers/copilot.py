@@ -81,13 +81,6 @@ async def chat(request: ChatRequest):
 
     async def event_generator():
         try:
-            # Padding to bypass Cloudflare/NGINX initial buffering
-            yield f": {' ' * 8192}\n\n"
-            await asyncio.sleep(0)
-
-            chunk_count = 0
-            logger.info("[Copilot Stream] Starting to stream from %s...", settings.openrouter_model)
-
             async for msg_chunk, metadata in copilot.astream(
                 {"messages": [("user", request.message)]},
                 config=config,
@@ -103,20 +96,9 @@ async def chat(request: ChatRequest):
 
                 payload = json.dumps({"type": "token", "content": msg_chunk.content}, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
-                chunk_count += 1
-
-                # Log every 10th chunk to track streaming progress
-                if chunk_count % 10 == 0:
-                    logger.info("[Copilot Stream] Streamed %d chunks so far", chunk_count)
-
-                # Force event loop to flush the chunk immediately
-                await asyncio.sleep(0)
-
-            logger.info("[Copilot Stream] Completed with %d chunks", chunk_count)
 
             done = json.dumps({"type": "done", "thread_id": thread_id}, ensure_ascii=False)
             yield f"data: {done}\n\n"
-            await asyncio.sleep(0)
 
         except Exception as exc:
             logger.error("Streaming error: %s", exc, exc_info=True)
@@ -125,16 +107,11 @@ async def chat(request: ChatRequest):
                 ensure_ascii=False,
             )
             yield f"data: {error}\n\n"
-            await asyncio.sleep(0)
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
