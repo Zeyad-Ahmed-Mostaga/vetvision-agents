@@ -1,7 +1,7 @@
 ---
 title: VetVision AI
 emoji: 🐾
-colorFrom: teal
+colorFrom: green
 colorTo: green
 sdk: docker
 app_port: 7860
