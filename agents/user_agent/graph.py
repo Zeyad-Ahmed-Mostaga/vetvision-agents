@@ -6,9 +6,9 @@ Builds the VetVision ReAct agent graph for the user-facing chatbot (فيتو).
 Architecture:
   AgentState → agent_node → tools_condition → ToolNode → agent_node → …
 
-Primary LLM:  OpenRouter via ChatOpenAI (model configurable via settings)
+Primary LLM:  ChatGroq (model configurable via settings)
 Fallback LLM: ChatGoogleGenerativeAI (Gemini) — transparent to the graph;
-              switched automatically if OpenRouter raises an error.
+              switched automatically if Groq raises an error.
 
 Memory:  MemorySaver (per-thread conversation history)
 Context: Sliding window of last N messages (trim_messages, strategy="last")
@@ -21,7 +21,7 @@ Public API:
 import logging
 from typing import Annotated
 
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, trim_messages
 from langgraph.graph import StateGraph, END
@@ -43,12 +43,11 @@ class AgentState(TypedDict):
 
 
 # ── LLM setup ─────────────────────────────────────────────────────────────────
-def _make_primary_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.openrouter_model,
-        temperature=settings.agent_temperature,
-        openai_api_base=settings.openrouter_base_url,
-        openai_api_key=settings.openrouter_api_key,
+def _make_primary_llm() -> ChatGroq:
+    return ChatGroq(
+        model=settings.groq_model,
+        temperature=0.1,
+        groq_api_key=settings.groq_api_key,
         streaming=True,
     )
 
@@ -72,7 +71,7 @@ def agent_node(state: AgentState) -> AgentState:
     Core agent node.
     - Trims messages to last N (settings.context_window_messages) — sliding window.
     - Prepends the system prompt before each LLM call.
-    - Tries the primary LLM (OpenRouter); falls back to Gemini on any error.
+    - Tries the primary LLM (Groq); falls back to Gemini on any error.
     """
     trimmed = trim_messages(
         state["messages"],
@@ -91,7 +90,7 @@ def agent_node(state: AgentState) -> AgentState:
         return {"messages": [response]}
     except Exception as exc:
         logger.warning(
-            "Primary LLM (OpenRouter) failed (%s) — switching to Gemini fallback.", exc
+            "Primary LLM (Groq) failed (%s) — switching to Gemini fallback.", exc
         )
 
     # Fallback LLM
@@ -125,7 +124,7 @@ def build_agent():
 
     logger.info(
         "✅ User Agent (فيتو) compiled | model=%s | tools=%s | window=%d msgs",
-        settings.openrouter_model,
+        settings.groq_model,
         [t.name for t in TOOLS],
         settings.context_window_messages,
     )
