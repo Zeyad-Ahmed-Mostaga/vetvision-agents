@@ -1,5 +1,5 @@
 """
-routers/user_chat.py — User-Facing Agent Endpoints (فيتو)
+routers/user_chat.py — User-Facing Agent Endpoints
 ==========================================================
 Endpoints:
   POST /chat        — SSE streaming chat for pet owners
@@ -11,6 +11,7 @@ These endpoints serve the user-facing VetVision app (pet owners).
 import json
 import logging
 import uuid
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter
@@ -23,7 +24,7 @@ from rag.store import get_vector_store, get_collection_point_counts
 
 logger = logging.getLogger("vetvision.user_chat")
 
-router = APIRouter(tags=["User Agent — فيتو"])
+router = APIRouter(tags=["User Agent"])
 
 # ── Request / Response models ─────────────────────────────────────────────────
 _MAX_MESSAGE_LEN = 2000
@@ -54,7 +55,7 @@ async def chat(request: ChatRequest):
     Each event is a JSON object:
       {"type": "token",  "content": "<text>"}
       {"type": "done",   "thread_id": "<id>"}
-      {"type": "error",  "content": "<arabic error message>"}
+      {"type": "error",  "content": "<error message>"}
     """
     thread_id = str(uuid.uuid4()) if request.reset else request.thread_id
 
@@ -69,6 +70,10 @@ async def chat(request: ChatRequest):
 
     async def event_generator():
         try:
+            # Padding to bypass Cloudflare/NGINX initial buffering
+            yield f": {' ' * 2048}\n\n"
+            await asyncio.sleep(0)
+
             async for msg_chunk, metadata in agent.astream(
                 {"messages": [("user", request.message)]},
                 config=config,
@@ -84,9 +89,13 @@ async def chat(request: ChatRequest):
 
                 payload = json.dumps({"type": "token", "content": msg_chunk.content}, ensure_ascii=False)
                 yield f"data: {payload}\n\n"
+                
+                # Force event loop to flush the chunk immediately
+                await asyncio.sleep(0)
 
             done_payload = json.dumps({"type": "done", "thread_id": thread_id}, ensure_ascii=False)
             yield f"data: {done_payload}\n\n"
+            await asyncio.sleep(0)
 
         except Exception as exc:
             logger.error("Streaming error for thread %s: %s", thread_id, exc, exc_info=True)
@@ -95,16 +104,16 @@ async def chat(request: ChatRequest):
                 ensure_ascii=False,
             )
             yield f"data: {error_payload}\n\n"
+            await asyncio.sleep(0)
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
         headers={
-    "Cache-Control": "no-cache, no-transform",
-    "X-Accel-Buffering": "no",
-    "Transfer-Encoding": "chunked",
-    "Connection": "keep-alive",
-},
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 
@@ -117,7 +126,7 @@ async def health():
         counts = get_collection_point_counts()
         return {
             "status":        "ok",
-            "agent":         "user-agent (فيتو)",
+            "agent":         "user-agent",
             "qdrant_mode":   settings.qdrant_mode,
             "qdrant_active": mode,
             "collection":    settings.collection_name,
@@ -131,7 +140,7 @@ async def health():
             status_code=200,
             content={
                 "status":    "degraded",
-                "agent":     "user-agent (فيتو)",
+                "agent":     "user-agent",
                 "error":     str(exc),
                 "timestamp": datetime.utcnow().isoformat(),
             },
