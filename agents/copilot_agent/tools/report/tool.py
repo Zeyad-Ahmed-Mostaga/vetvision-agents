@@ -71,7 +71,7 @@ def generate_patient_report(
         animal_name, animal_type, diagnosis,
     )
     try:
-        return generate_report_pipeline(
+        result = generate_report_pipeline(
             animal_name=animal_name,
             animal_type=animal_type,
             owner_name=owner_name,
@@ -80,6 +80,17 @@ def generate_patient_report(
             treatment=treatment,
             doctor_name=doctor_name,
             doctor_notes=doctor_notes or "",
+        )
+        # Format the structured dict into the descriptive string the LLM expects
+        d = result["data"]
+        p = d["patient_info"]
+        return (
+            f"{result['message']}\n"
+            f"Filename: {d['filename']}\n"
+            f"Download URL: {d['download_url']}\n"
+            f"File size: {d['file_size_kb']} KB\n"
+            f"Patient: {p['animal_name']} ({p['animal_type']}) | Doctor: Dr. {d['doctor_name']}\n"
+            f"Report ID: {d['report_id']} | Time: {d['execution_time_sec']}s"
         )
     except Exception as exc:
         logger.error("[Tool:generate_patient_report] Pipeline failed: %s", exc, exc_info=True)

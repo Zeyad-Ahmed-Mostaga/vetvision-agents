@@ -359,8 +359,15 @@ def generate_report_pipeline(
     animal_name: str, animal_type: str, owner_name: str, weight_kg: float,
     diagnosis: str, treatment: str, doctor_name: str,
     doctor_notes: str = "", visit_date: Optional[str] = None,
-) -> str:
-    """Run the full 4-phase report generation pipeline. Synchronous — safe in LangGraph ToolNode."""
+) -> dict:
+    """Run the full 4-phase report generation pipeline. Synchronous — safe in LangGraph ToolNode.
+
+    Returns a structured dictionary with:
+        status (str): "ok"
+        message (str): Human-readable Arabic success message
+        data (dict): report_id, filename, download_url, file_size_kb,
+                     execution_time_sec, patient_info, doctor_name
+    """
     t_start = time.monotonic()
     report_id = str(uuid.uuid4())[:8]
     visit_date = visit_date or datetime.now().strftime("%Y-%m-%d")
@@ -392,14 +399,24 @@ def generate_report_pipeline(
         raise RuntimeError(f"PDF not found on disk after generation: {filepath}")
 
     size_kb = os.path.getsize(filepath) // 1024
-    elapsed = time.monotonic() - t_start
+    elapsed = round(time.monotonic() - t_start, 1)
     logger.info("[Report] DONE | id=%s | file=%s | %dKB | %.1fs", report_id, filename, size_kb, elapsed)
 
-    return (
-        f"✅ تم إنشاء التقرير بنجاح!\n"
-        f"Filename: {filename}\n"
-        f"Download URL: /copilot/reports/{filename}\n"
-        f"File size: {size_kb} KB\n"
-        f"Patient: {animal_name} ({animal_type}) | Doctor: Dr. {doctor_name}\n"
-        f"Report ID: {report_id} | Time: {elapsed:.1f}s"
-    )
+    return {
+        "status": "ok",
+        "message": "✅ تم إنشاء التقرير بنجاح!",
+        "data": {
+            "report_id": report_id,
+            "filename": filename,
+            "download_url": f"/copilot/reports/{filename}",
+            "file_size_kb": size_kb,
+            "execution_time_sec": elapsed,
+            "patient_info": {
+                "animal_name": animal_name,
+                "animal_type": animal_type,
+                "owner_name": owner_name,
+                "weight_kg": weight_kg,
+            },
+            "doctor_name": doctor_name,
+        },
+    }

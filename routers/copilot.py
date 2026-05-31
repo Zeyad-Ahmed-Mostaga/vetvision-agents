@@ -129,7 +129,14 @@ async def patient_history(animal_id: str):
 # ── POST /copilot/generate-report ────────────────────────────────────────────
 @router.post("/generate-report", summary="Generate PDF report directly (bypass agent)")
 async def generate_report(request: ReportRequest):
-    """Generate a PDF report directly, bypassing the chat agent."""
+    """Generate a PDF report directly, bypassing the chat agent.
+
+    Returns a structured JSON response with:
+        status (str): "ok"
+        message (str): Human-readable Arabic success message
+        data (dict): report_id, filename, download_url, file_size_kb,
+                     execution_time_sec, patient_info, doctor_name
+    """
     from agents.copilot_agent.tools.report.pipeline import generate_report_pipeline
 
     try:
@@ -147,7 +154,7 @@ async def generate_report(request: ReportRequest):
                 doctor_notes=request.doctor_notes,
             )
         )
-        return {"status": "ok", "result": result}
+        return result
     except Exception as exc:
         logger.error("Report generation failed: %s", exc, exc_info=True)
         return JSONResponse(
