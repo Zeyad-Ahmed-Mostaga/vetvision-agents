@@ -1,11 +1,13 @@
 """
-agents/copilot_agent/tools/report/pipeline.py — 4-Phase Report Pipeline
+agents/copilot_agent/tools/report/pipeline.py — 2-Phase Report Pipeline
 =========================================================================
 Phases:
-  1. Formalize   — LLM rewrites raw doctor notes into formal medical language
-  2. Research    — Multi-query RAG → sufficiency check → Tavily fallback
-  3. Structure   — Single LLM call writes all Arabic report sections as JSON
-  4. Render PDF  — Jinja2 HTML template → Playwright/Chromium → PDF file
+  1. Research    — Multi-query RAG retrieval + Tavily fallback (no LLM)
+  2. Generate    — Single LLM call: formalizes notes AND writes all sections
+  3. Render PDF  — Jinja2 HTML → Playwright/Chromium → PDF file
+
+Phase numbering kept as 1/2/3 for log clarity; architecturally it's 2 phases
+of intelligence (Research + Generate) plus a render step.
 """
 
 import logging
@@ -21,13 +23,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from config import settings
 from agents.copilot_agent.tools.report.schemas import (
-    FormalizedNotes, ResearchResults, WebResultRelevance,
     ReportContent, ReportData,
 )
 
 logger = logging.getLogger(__name__)
 
-# ── Paths (from config.settings — no fragile parent counting) ─────────────────
+# ── Paths ─────────────────────────────────────────────────────────────────────
 REPORTS_DIR = Path(settings.reports_dir)
 _TEMPLATES_DIR = Path(settings.report_templates_dir)
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -71,47 +72,11 @@ def _llm_with_retry(schema, prompt_messages: list, invoke_kwargs: dict, phase_na
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PHASE 1 — Formalize raw doctor notes
-# ══════════════════════════════════════════════════════════════════════════════
-
-def phase_formalize(diagnosis_raw: str, treatment_raw: str, animal_type: str) -> FormalizedNotes:
-    """Rewrite raw doctor notes into formal veterinary medical language."""
-    logger.info("[Phase1] Formalizing notes for animal_type=%s", animal_type)
-    prompt_messages = [
-        ("system",
-         "You are a professional veterinary medical editor. Rewrite the doctor's raw "
-         "clinical notes into formal, concise veterinary medical language.\n"
-         "Rules:\n"
-         "- Diagnosis: One formal medical term or short phrase (max 8 words)\n"
-         "- Treatment: One concise sentence describing the treatment plan\n"
-         "- Write Arabic naturally as a professional Arabic veterinarian\n"
-         "- is_medication: true ONLY if treatment involves a purchasable drug/product\n"
-         "Respond ONLY with the structured data."),
-        ("human", "Animal type: {animal_type}\nDiagnosis: {diagnosis}\nTreatment: {treatment}"),
-    ]
-    try:
-        result = _llm_with_retry(
-            schema=FormalizedNotes,
-            prompt_messages=prompt_messages,
-            invoke_kwargs={"animal_type": animal_type, "diagnosis": diagnosis_raw, "treatment": treatment_raw},
-            phase_name="Phase1-Formalize",
-        )
-        logger.info("[Phase1] Done | diag_en=%s | is_med=%s", result.diagnosis_en, result.is_medication)
-        return result
-    except Exception as exc:
-        logger.error("[Phase1] All retries exhausted — using raw inputs. Error: %s", exc)
-        return FormalizedNotes(
-            diagnosis_en=diagnosis_raw[:100], diagnosis_ar=diagnosis_raw[:100],
-            treatment_en=treatment_raw[:200], treatment_ar=treatment_raw[:200],
-            is_medication=False,
-        )
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PHASE 2 — Multi-query RAG + validated Tavily fallback
+# PHASE 1 — Research: Multi-query RAG + Tavily fallback (no LLM calls)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _map_animal_type(animal_type_raw: str) -> str:
+    """Normalize animal type to RAG collection category."""
     cats   = {"cat","kitten","cats","قطة","قط","قطط","هرة","هريرة"}
     dogs   = {"dog","puppy","dogs","كلب","جرو","كلاب"}
     horses = {"horse","foal","horses","حصان","مهر","خيل","فرس"}
@@ -122,12 +87,13 @@ def _map_animal_type(animal_type_raw: str) -> str:
     return "other"
 
 
-def _rag_retrieve(diagnosis_en: str, animal_type_raw: str, rag_cat: str) -> list[str]:
+def _rag_retrieve(diagnosis: str, animal_type_raw: str, rag_cat: str) -> list[str]:
+    """Run multi-query RAG retrieval, deduplicate chunks."""
     from rag.retrieval import advanced_rag_retrieve
     queries = [
-        f"{diagnosis_en} in {animal_type_raw}",
-        f"{diagnosis_en} symptoms signs {animal_type_raw}",
-        f"{diagnosis_en} treatment home care prevention {animal_type_raw}",
+        f"{diagnosis} in {animal_type_raw}",
+        f"{diagnosis} symptoms signs {animal_type_raw}",
+        f"{diagnosis} treatment home care prevention {animal_type_raw}",
     ]
     seen: set[str] = set()
     chunks: list[str] = []
@@ -140,133 +106,185 @@ def _rag_retrieve(diagnosis_en: str, animal_type_raw: str, rag_cat: str) -> list
                     seen.add(fp)
                     chunks.append(doc.page_content)
         except Exception as exc:
-            logger.warning("[Phase2] RAG query failed (%s): %s", q, exc)
-    logger.info("[Phase2] RAG returned %d unique chunks.", len(chunks))
+            logger.warning("[Phase1-Research] RAG query failed (%s): %s", q, exc)
+    logger.info("[Phase1-Research] RAG returned %d unique chunks.", len(chunks))
     return chunks
 
 
-def _validate_web_result(result_text: str, diagnosis_en: str, animal_type: str) -> bool:
-    prompt_messages = [
-        ("system",
-         "You are a veterinary content validator. Determine if the given web search "
-         "result contains specific, factual veterinary information relevant to the "
-         "provided diagnosis and animal type. Answer ONLY with the structured data."),
-        ("human", "Diagnosis: {diagnosis}\nAnimal type: {animal_type}\n\nWeb search result:\n{result_text}"),
-    ]
-    try:
-        result = _llm_with_retry(
-            schema=WebResultRelevance,
-            prompt_messages=prompt_messages,
-            invoke_kwargs={"diagnosis": diagnosis_en, "animal_type": animal_type, "result_text": result_text[:1500]},
-            phase_name="Phase2-WebValidation",
-        )
-        logger.info("[Phase2] Web validation: is_relevant=%s", result.is_relevant)
-        return result.is_relevant
-    except Exception as exc:
-        logger.warning("[Phase2] Web validation failed (%s) — excluding result.", exc)
-        return False
-
-
 def _tavily_search(query: str) -> str:
+    """Run a single Tavily web search, return raw text."""
     try:
         from agents.copilot_agent.tools.web_search import tavily_search
         result = tavily_search.invoke(query)
         return str(result) if result else ""
     except Exception as exc:
-        logger.warning("[Phase2] Tavily search failed (%s): %s", query, exc)
+        logger.warning("[Phase1-Research] Tavily search failed (%s): %s", query, exc)
         return ""
 
 
-def phase_research(formal: FormalizedNotes, animal_type_raw: str) -> ResearchResults:
-    """Gather veterinary knowledge: multi-query RAG + optional validated Tavily fallback."""
-    rag_cat = _map_animal_type(animal_type_raw)
-    logger.info("[Phase2] Research start | diag=%s | rag_cat=%s", formal.diagnosis_en, rag_cat)
+def phase_research(diagnosis: str, treatment: str, animal_type_raw: str) -> str:
+    """Gather veterinary knowledge: multi-query RAG + optional Tavily fallback.
 
-    chunks = _rag_retrieve(formal.diagnosis_en, animal_type_raw, rag_cat)
+    Returns a single string of assembled source material for the LLM.
+    No LLM calls — just retrieval.
+    """
+    rag_cat = _map_animal_type(animal_type_raw)
+    logger.info("[Phase1-Research] Start | diag=%s | rag_cat=%s", diagnosis, rag_cat)
+
+    chunks = _rag_retrieve(diagnosis, animal_type_raw, rag_cat)
     rag_text = "\n\n---\n\n".join(chunks)
     rag_total_chars = sum(len(c) for c in chunks)
 
     web_parts: list[str] = []
     if rag_total_chars < settings.report_rag_min_chars:
-        logger.info("[Phase2] RAG insufficient (%d chars) — triggering Tavily fallback.", rag_total_chars)
-        sym_raw = _tavily_search(f"{formal.diagnosis_en} symptoms signs {animal_type_raw} veterinary")
-        care_raw = _tavily_search(f"{formal.diagnosis_en} home care treatment {animal_type_raw}")
+        logger.info("[Phase1-Research] RAG insufficient (%d chars) — triggering Tavily fallback.", rag_total_chars)
+        sym_raw = _tavily_search(f"{diagnosis} symptoms signs {animal_type_raw} veterinary")
+        care_raw = _tavily_search(f"{diagnosis} home care treatment {animal_type_raw}")
         for label, raw in [("symptoms", sym_raw), ("care", care_raw)]:
-            if raw and _validate_web_result(raw, formal.diagnosis_en, animal_type_raw):
+            if raw:
                 web_parts.append(f"[Web — {label}]\n{raw}")
     else:
-        logger.info("[Phase2] RAG sufficient (%d chars) — skipping Tavily.", rag_total_chars)
+        logger.info("[Phase1-Research] RAG sufficient (%d chars) — skipping Tavily.", rag_total_chars)
 
     web_text = "\n\n".join(web_parts)
-    source = ("rag+web" if rag_text and web_text else
-              "rag" if rag_text else
-              "web" if web_text else "none")
-    logger.info("[Phase2] Done | source=%s | rag=%d | web=%d", source, len(rag_text), len(web_text))
-    return ResearchResults(rag_text=rag_text, web_text=web_text, source_label=source, rag_chunk_count=len(chunks))
+
+    # Assemble final source text
+    parts: list[str] = []
+    if rag_text:
+        parts.append(f"=== VETERINARY KNOWLEDGE BASE ===\n{rag_text}")
+    if web_text:
+        parts.append(f"=== WEB SEARCH RESULTS ===\n{web_text}")
+
+    source_label = ("rag+web" if rag_text and web_text else
+                    "rag" if rag_text else
+                    "web" if web_text else "none")
+    sources = "\n\n".join(parts) if parts else "No source material available."
+
+    logger.info("[Phase1-Research] Done | source=%s | rag_chars=%d | web_chars=%d",
+                source_label, len(rag_text), len(web_text))
+    return sources
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PHASE 3 — Structure all content sections via a single LLM call
+# PHASE 2 — Generate: Single LLM call — formalize + write all sections
 # ══════════════════════════════════════════════════════════════════════════════
 
-_STRUCTURE_SYSTEM = """\
-أنت طبيب بيطري عربي محترف تكتب تقريراً طبياً لصاحب الحيوان الأليف.
-مهمتك: بناءً على مواد المصدر المقدمة، اكتب محتوى التقرير لكل قسم.
-القواعد: استخدم المصادر فقط — لا اختراع. اكتب بعربية مفهومة لصاحب الحيوان.
-مواد المصدر:
+_GENERATE_SYSTEM = """\
+You are an expert veterinary medical report writer producing a professional \
+Arabic-primary bilingual clinical report for a pet owner.
+
+You will receive:
+1. RAW doctor notes (diagnosis + treatment + optional notes) — these may contain \
+informal language, abbreviations, or spelling errors.
+2. Source material from a veterinary knowledge base and/or web search.
+3. Patient context (animal name, type, weight).
+
+Your job has TWO parts:
+
+PART A — FORMALIZE the raw doctor notes:
+- Convert the raw diagnosis into a precise medical term (English) and its \
+professional Arabic equivalent.
+- Convert the raw treatment into a formal treatment plan sentence (English + Arabic).
+- These must read as if written by a board-certified veterinarian.
+
+PART B — WRITE the report sections in Arabic:
+For each section, follow these rules:
+
+**overview**: Write 3-5 sentences explaining what this condition is, what causes it, \
+and why it matters for this specific animal type. Use warm, simple Arabic that a Animal \
+owner with no medical background can understand. Medical terms may appear in English. \
+Do NOT just restate the diagnosis — EXPLAIN the condition to animal owner.
+
+**symptoms**: Write 3-6 bullet points (use • character) of specific, observable symptoms \
+the owner should watch for at home. Each bullet must describe a concrete sign, not a \
+vague category. Extract ONLY from source material.
+
+**home_care**: Write 3-5 bullet points (use • character) of practical, actionable \
+home care instructions. where sources \
+provide them. Extract ONLY from source material. Never invent medical advice.
+
+**prevention**: Write 2-4 bullet points (use • character) of prevention tips for this \
+condition and animal type. If sources contain no prevention info, write exactly: \
+'استشر طبيبك البيطري للحصول على نصائح الوقاية المناسبة لحالة حيوانك.'
+
+**doctor_notes**: If doctor notes are provided, rewrite them into professional, clear \
+Arabic suitable for a medical report — fix spelling, formalize language, remove \
+abbreviations. If no notes provided (empty), return empty string.
+
+CRITICAL RULES:
+- Write ALL Arabic sections in natural, professional Arabic — not machine-translated.
+- NEVER produce single-sentence sections. Each section must have real substance.
+- NEVER use generic filler like 'يرجى مراجعة الطبيب' as a substitute for content.
+- Extract information from sources. When sources lack detail for a section, write \
+what you know from veterinary knowledge but keep it conservative and accurate.
+- The animal owner will read this report. Be warm but professional.
+
+SOURCE MATERIAL:
 {sources}
 """
 
 _FALLBACK_CONTENT = ReportContent(
-    overview="يرجى مراجعة طبيبك البيطري للحصول على مزيد من المعلومات.",
-    symptoms="يرجى مراجعة طبيبك البيطري للاطلاع على الأعراض.",
-    home_care="يرجى اتباع تعليمات طبيبك البيطري.",
-    prevention="استشر طبيبك البيطري للحصول على نصائح الوقاية.",
-    medication_info="يرجى مراجعة طبيبك البيطري للحصول على معلومات الدواء.",
+    diagnosis_en="Refer to your veterinarian",
+    diagnosis_ar="يرجى مراجعة الطبيب البيطري",
+    treatment_en="Follow your veterinarian's instructions",
+    treatment_ar="يرجى اتباع تعليمات الطبيب البيطري",
+    overview="يرجى مراجعة طبيبك البيطري للحصول على مزيد من المعلومات حول حالة حيوانك.",
+    symptoms="يرجى مراجعة طبيبك البيطري للاطلاع على الأعراض التي يجب مراقبتها.",
+    home_care="يرجى اتباع تعليمات طبيبك البيطري للعناية المنزلية.",
+    prevention="استشر طبيبك البيطري للحصول على نصائح الوقاية المناسبة لحالة حيوانك.",
     doctor_notes="",
 )
 
 
-def phase_structure(formal: FormalizedNotes, research: ResearchResults, doctor_notes_input: str) -> ReportContent:
-    """Single LLM call writing all Arabic report sections as validated JSON."""
-    logger.info("[Phase3] Structuring content | source=%s", research.source_label)
-    parts: list[str] = []
-    if research.rag_text:
-        parts.append(f"=== قاعدة المعرفة البيطرية ===\n{research.rag_text}")
-    if research.web_text:
-        parts.append(f"=== نتائج البحث ===\n{research.web_text}")
-    sources = "\n\n".join(parts) if parts else "لا توجد مصادر."
+def phase_generate(
+    diagnosis_raw: str,
+    treatment_raw: str,
+    doctor_notes_raw: str,
+    animal_name: str,
+    animal_type: str,
+    weight_kg: float,
+    sources: str,
+) -> ReportContent:
+    """Single LLM call: formalize raw notes AND write all Arabic report sections."""
+    logger.info("[Phase2-Generate] Generating report content for %s (%s)", animal_name, animal_type)
 
     prompt_messages = [
-        ("system", _STRUCTURE_SYSTEM),
+        ("system", _GENERATE_SYSTEM),
         ("human",
-         "التشخيص EN: {diagnosis_en}\nالتشخيص AR: {diagnosis_ar}\n"
-         "العلاج: {treatment_ar}\nدواء: {is_med}\nملاحظات: {doctor_notes}"),
+         "PATIENT CONTEXT:\n"
+         "- Animal name: {animal_name}\n"
+         "- Animal type: {animal_type}\n"
+         "- Weight: {weight_kg} kg\n\n"
+         "RAW DOCTOR NOTES (must be formalized — do NOT copy verbatim):\n"
+         "- Diagnosis: {diagnosis_raw}\n"
+         "- Treatment: {treatment_raw}\n"
+         "- Additional notes: {doctor_notes_raw}"),
     ]
+
     try:
         result = _llm_with_retry(
             schema=ReportContent,
             prompt_messages=prompt_messages,
             invoke_kwargs={
                 "sources": sources,
-                "diagnosis_en": formal.diagnosis_en, "diagnosis_ar": formal.diagnosis_ar,
-                "treatment_ar": formal.treatment_ar,
-                "is_med": "نعم" if formal.is_medication else "لا",
-                "doctor_notes": doctor_notes_input.strip() if doctor_notes_input else "",
+                "animal_name": animal_name,
+                "animal_type": animal_type,
+                "weight_kg": weight_kg,
+                "diagnosis_raw": diagnosis_raw,
+                "treatment_raw": treatment_raw,
+                "doctor_notes_raw": doctor_notes_raw.strip() if doctor_notes_raw else "",
             },
-            phase_name="Phase3-Structure",
+            phase_name="Phase2-Generate",
         )
-        logger.info("[Phase3] Content structured successfully.")
+        logger.info("[Phase2-Generate] Content generated | diag_en=%s", result.diagnosis_en)
         return result
     except Exception as exc:
-        logger.error("[Phase3] Fallback triggered. Error: %s", exc)
-        fallback = _FALLBACK_CONTENT.model_copy()
-        fallback.doctor_notes = doctor_notes_input.strip() if doctor_notes_input else ""
-        return fallback
+        logger.error("[Phase2-Generate] Fallback triggered. Error: %s", exc)
+        return _FALLBACK_CONTENT.model_copy()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PHASE 4 — HTML → Playwright → PDF
+# PHASE 3 — HTML → Playwright → PDF (kept exactly as-is)
 # ══════════════════════════════════════════════════════════════════════════════
 
 _playwright_instance = None
@@ -287,14 +305,14 @@ def _get_browser():
     lock = _get_browser_lock()
     with lock:
         if _browser_instance is None or not _browser_instance.is_connected():
-            logger.info("[Phase4] Launching Playwright Chromium...")
+            logger.info("[Phase3-Render] Launching Playwright Chromium...")
             from playwright.sync_api import sync_playwright
             _playwright_instance = sync_playwright().start()
             _browser_instance = _playwright_instance.chromium.launch(
                 headless=True,
                 args=["--no-sandbox", "--disable-dev-shm-usage"],
             )
-            logger.info("[Phase4] Chromium ready.")
+            logger.info("[Phase3-Render] Chromium ready.")
     return _browser_instance
 
 
@@ -311,7 +329,7 @@ def shutdown_browser() -> None:
             try: _playwright_instance.stop()
             except Exception: pass
             _playwright_instance = None
-    logger.info("[Phase4] Chromium browser closed.")
+    logger.info("[Phase3-Render] Chromium browser closed.")
 
 
 def _render_html(report_data: ReportData) -> str:
@@ -330,7 +348,7 @@ def _build_pdf_in_thread(html_content: str, filepath: str) -> None:
         page.set_content(html_content, wait_until="networkidle")
         page.pdf(path=filepath, format="A4", print_background=True,
                  margin={"top": "10mm", "bottom": "10mm", "left": "12mm", "right": "12mm"})
-        logger.info("[Phase4] PDF written: %s", filepath)
+        logger.info("[Phase3-Render] PDF written: %s", filepath)
     finally:
         page.close()
         context.close()
@@ -340,15 +358,15 @@ _thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_
 
 
 def phase_render_pdf(report_data: ReportData, filepath: str) -> None:
-    logger.info("[Phase4] Rendering PDF | file=%s", filepath)
+    logger.info("[Phase3-Render] Rendering PDF | file=%s", filepath)
     html = _render_html(report_data)
     future = _thread_pool.submit(_build_pdf_in_thread, html, filepath)
     try:
         future.result(timeout=60)
     except concurrent.futures.TimeoutError:
-        raise RuntimeError("[Phase4] PDF generation timed out after 60 seconds.")
+        raise RuntimeError("[Phase3-Render] PDF generation timed out after 60 seconds.")
     except Exception as exc:
-        raise RuntimeError(f"[Phase4] PDF generation failed: {exc}") from exc
+        raise RuntimeError(f"[Phase3-Render] PDF generation failed: {exc}") from exc
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -360,7 +378,7 @@ def generate_report_pipeline(
     diagnosis: str, treatment: str, doctor_name: str,
     doctor_notes: str = "", visit_date: Optional[str] = None,
 ) -> dict:
-    """Run the full 4-phase report generation pipeline. Synchronous — safe in LangGraph ToolNode.
+    """Run the 2-phase report generation pipeline. Synchronous — safe in LangGraph ToolNode.
 
     Returns a structured dictionary with:
         status (str): "ok"
@@ -375,16 +393,25 @@ def generate_report_pipeline(
 
     logger.info("[Report] START | id=%s | patient=%s | diag=%s", report_id, animal_name, diagnosis[:60])
 
-    formal   = phase_formalize(diagnosis, treatment, animal_type)
-    research = phase_research(formal, animal_type)
-    content  = phase_structure(formal, research, doctor_notes)
+    # Phase 1 — Research (no LLM calls)
+    sources = phase_research(diagnosis, treatment, animal_type)
+
+    # Phase 2 — Generate (single LLM call: formalize + write sections)
+    content = phase_generate(
+        diagnosis_raw=diagnosis,
+        treatment_raw=treatment,
+        doctor_notes_raw=doctor_notes,
+        animal_name=animal_name,
+        animal_type=animal_type,
+        weight_kg=weight_kg,
+        sources=sources,
+    )
 
     report_data = ReportData(
         animal_name=animal_name, animal_type=animal_type, owner_name=owner_name, weight_kg=weight_kg,
-        diagnosis_ar=formal.diagnosis_ar, diagnosis_en=formal.diagnosis_en,
-        treatment_ar=formal.treatment_ar, treatment_en=formal.treatment_en,
+        diagnosis_ar=content.diagnosis_ar, diagnosis_en=content.diagnosis_en,
+        treatment_ar=content.treatment_ar, treatment_en=content.treatment_en,
         content=content, doctor_name=doctor_name,
-        doctor_notes_input=doctor_notes.strip() if doctor_notes else "",
         visit_date=visit_date, generated_at=generated_at, report_id=report_id,
     )
 
@@ -392,6 +419,7 @@ def generate_report_pipeline(
     filename  = f"report_{report_id}_{safe_name}.pdf"
     filepath  = str(REPORTS_DIR / filename)
 
+    # Phase 3 — Render PDF (Playwright — kept as-is)
     phase_render_pdf(report_data, filepath)
 
     import os

@@ -30,7 +30,7 @@ class RegisterFirstVisitInput(BaseModel):
     """Input schema for register_first_visit — new patient only."""
     animal_name: str             = Field(..., description="Name of the animal patient")
     animal_type: str             = Field(..., description="Type of animal (free text, e.g. 'cat', 'dog', 'parrot')")
-    owner_name:  str             = Field(..., description="Full name of the pet owner")
+    owner_name:  str             = Field(..., description="Full name of the Animal owner")
     weight_kg:   Optional[float] = Field(None, description="Animal's weight in kilograms at this visit (optional — pass null if unknown)")
     diagnosis:   str             = Field(..., description="Clinical diagnosis for this visit")
     treatment:   str             = Field(..., description="Treatment prescribed for this visit")

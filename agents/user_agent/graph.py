@@ -1,7 +1,7 @@
 """
 agents/user_agent/graph.py — LangGraph User Agent
 ===================================================
-Builds the VetVision ReAct agent graph for the user-facing chatbot (فيتو).
+Builds the VetVision ReAct agent graph for the user-facing chatbot.
 
 Architecture:
   AgentState → agent_node → tools_condition → ToolNode → agent_node → …

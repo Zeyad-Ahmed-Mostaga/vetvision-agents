@@ -1,109 +1,100 @@
 """
 tools/report/schemas.py — Pydantic Data Models for the Report Pipeline
 ========================================================================
-All data contracts between pipeline phases.  Every LLM output is validated
-against one of these models via .with_structured_output() — zero string parsing.
+Data contracts for the 2-phase report pipeline.
+Phase 1: Research (RAG + optional Tavily) — no schema needed, returns raw text.
+Phase 2: Generate  — single LLM call that formalizes AND writes all sections.
+
+All LLM output is validated via .with_structured_output() — zero string parsing.
 """
 
-from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# ── Phase 1 output ────────────────────────────────────────────────────────────
-
-class FormalizedNotes(BaseModel):
-    """LLM-formalized version of the doctor's raw notes."""
-    diagnosis_en: str = Field(
-        description="Formal English medical diagnosis term or short phrase (≤8 words)"
-    )
-    diagnosis_ar: str = Field(
-        description="Formal Arabic medical diagnosis — written as a professional Arabic vet would write it"
-    )
-    treatment_en: str = Field(
-        description="Formal English treatment plan — one concise sentence"
-    )
-    treatment_ar: str = Field(
-        description="Formal Arabic treatment plan — one concise sentence in natural veterinary Arabic"
-    )
-    is_medication: bool = Field(
-        description=(
-            "True ONLY if the treatment involves a drug, medication, or product "
-            "purchased from a pharmacy or veterinary store. False for procedures, "
-            "rest, dietary changes, or non-purchasable interventions."
-        )
-    )
-
-
-# ── Phase 2 intermediate ──────────────────────────────────────────────────────
-
-class WebResultRelevance(BaseModel):
-    """Used to score a web search result's relevance before including it."""
-    is_relevant: bool = Field(
-        description=(
-            "True if the web search result contains specific, factual veterinary "
-            "information about the given diagnosis and animal type. "
-            "False if it is generic, promotional, or unrelated."
-        )
-    )
-    reason: str = Field(description="One sentence explaining the relevance decision.")
-
-
-class ResearchResults(BaseModel):
-    """Aggregated research data from RAG + optional web search."""
-    rag_text: str       # Concatenated RAG chunks (may be empty)
-    web_text: str       # Validated web search results (may be empty)
-    source_label: str   # "rag" | "web" | "rag+web" | "none"
-    rag_chunk_count: int
-
-
-# ── Phase 3 output ────────────────────────────────────────────────────────────
+# ── Phase 2 output — single LLM call produces everything ─────────────────────
 
 class ReportContent(BaseModel):
-    """All AI-generated report sections, primarily in Arabic."""
+    """All AI-generated report content from a single LLM call.
+    The LLM formalizes the raw doctor notes AND writes all Arabic sections."""
+
+    # ── Formalized medical info (replaces old Phase 1) ────────────────────────
+    diagnosis_en: str = Field(
+        description=(
+            "Formal English medical diagnosis. One precise veterinary term or "
+            "short phrase, max 8 words. Example: 'Feline Panleukopenia Virus Infection'"
+        )
+    )
+    diagnosis_ar: str = Field(
+        description=(
+            "Formal Arabic medical diagnosis — written exactly as a professional "
+            "Arabic-speaking veterinarian would write it in a clinical report. "
+            "Must be medically precise, not a casual translation."
+        )
+    )
+    treatment_en: str = Field(
+        description=(
+            "Formal English treatment plan — one concise sentence describing "
+            "what was prescribed or performed."
+        )
+    )
+    treatment_ar: str = Field(
+        description=(
+            "Formal Arabic treatment plan — one concise sentence in natural "
+            "veterinary Arabic. Must sound like a real vet wrote it."
+        )
+    )
+
+    # ── Report body sections (all in Arabic) ──────────────────────────────────
     overview: str = Field(
         description=(
-            "2-3 sentences in Arabic explaining what this condition is and what causes it. "
-            "Use friendly, non-medical language a pet owner can understand. "
-            "Medical terms (e.g., drug names) may be in English where natural."
+            "3-5 sentences in Arabic explaining what this condition/diagnosis is, "
+            "what causes it, and why it matters for this animal type. "
+            "Write for a Animal owner with no medical background — use simple, warm language. "
+            "Medical terms (drug names, disease names) may appear in English where natural. "
+            "Do NOT just restate the diagnosis. Explain the condition."
         )
     )
     symptoms: str = Field(
         description=(
-            "Bullet-point list (using • or -) in Arabic of specific symptoms "
-            "the owner should watch for at home. Extract ONLY from the provided sources."
+            "A bullet-point list (using • character) in Arabic of 3-6 specific symptoms "
+            "the owner should watch for at home AFTER this visit. "
+            "Each bullet must be a concrete, observable sign — not vague. "
+            "Extract ONLY from the provided source material. "
+            "Example of good bullet: '• فقدان الشهية ورفض الطعام لأكثر من ٢٤ ساعة' "
+            "Example of bad bullet: '• أعراض عامة'"
         )
     )
     home_care: str = Field(
         description=(
-            "Practical home care instructions in Arabic (2-4 bullet points). "
-            "Extract ONLY from sources. Do not invent instructions."
+            "3-5 bullet points (using • character) in Arabic with practical, actionable "
+            "home care instructions the owner should follow. "
+            "Each point must be specific enough to act on — include quantities, frequencies, "
+            "or durations where the sources provide them. "
+            "Extract ONLY from sources. Do not invent medical instructions. "
+            "Example of good point: '• تقديم كميات صغيرة من الماء كل ساعة لتجنب الجفاف' "
+            "Example of bad point: '• الاهتمام بالحيوان'"
         )
     )
     prevention: str = Field(
         description=(
-            "2-3 prevention tips in Arabic relevant to this condition and animal type. "
-            "If no prevention info is in sources, write: "
-            "استشر طبيبك البيطري للحصول على نصائح الوقاية المناسبة."
-        )
-    )
-    medication_info: str = Field(
-        description=(
-            "If is_medication is True: medication name and typical dosage — "
-            "written in Arabic (drug name may be in English/Latin). "
-            "Do NOT include any prices or cost information. "
-            "If is_medication is False: write 'لا يتطلب العلاج دواءً. ' followed by the treatment plan in Arabic."
+            "2-4 bullet points (using • character) in Arabic with prevention tips "
+            "relevant to this specific condition and animal type. "
+            "If no prevention information exists in the sources, write exactly: "
+            "'استشر طبيبك البيطري للحصول على نصائح الوقاية المناسبة لحالة حيوانك.'"
         )
     )
     doctor_notes: str = Field(
         description=(
-            "Additional notes for the pet owner from the doctor. "
-            "If doctor provided notes, write them in Arabic. "
-            "If no notes were provided, write an empty string."
+            "If the doctor provided additional notes: rewrite them into professional, "
+            "clear Arabic suitable for a medical report. Fix any spelling errors, "
+            "informal language, or abbreviations. The output must read as if written "
+            "by a professional veterinarian. "
+            "If no doctor notes were provided (empty input), return an empty string."
         )
     )
 
 
-# ── Final assembled report data object ───────────────────────────────────────
+# ── Final assembled report data object ────────────────────────────────────────
 
 class ReportData(BaseModel):
     """Complete data object passed to the Jinja2 HTML template for rendering."""
@@ -113,18 +104,17 @@ class ReportData(BaseModel):
     owner_name: str
     weight_kg: float
 
-    # Formalized medical info
+    # Formalized medical info (from ReportContent)
     diagnosis_ar: str
     diagnosis_en: str
     treatment_ar: str
     treatment_en: str
 
-    # AI-generated content
+    # AI-generated content sections
     content: ReportContent
 
-    # Doctor info — name only, no doctor_id
+    # Doctor info
     doctor_name: str
-    doctor_notes_input: str  # Raw doctor notes from tool input (may be empty)
 
     # Meta
     visit_date: str

@@ -27,13 +27,39 @@ class GenerateReportInput(BaseModel):
     animal_type:  str            = Field(..., description="Type of animal (e.g. cat, dog, parrot, rabbit)")
     owner_name:   str            = Field(..., description="Name of the pet owner")
     weight_kg:    float          = Field(..., description="Weight of the animal in kilograms at this visit")
-    diagnosis:    str            = Field(..., description="Diagnosis (raw doctor notes accepted — will be formalized)")
-    treatment:    str            = Field(..., description="Treatment prescribed (raw notes accepted)")
+    diagnosis:    str            = Field(
+        ...,
+        description=(
+            "Formalized medical diagnosis. Before passing to this tool, YOU MUST "
+            "convert the doctor's raw/informal diagnosis into a proper veterinary "
+            "medical term or phrase (e.g. 'Feline Panleukopenia Virus Infection' "
+            "instead of 'بانلوكوبينيا' or 'cat has parvo'). "
+            "The pipeline will further refine this, but provide your best "
+            "professional formalization as a first pass."
+        ),
+    )
+    treatment:    str            = Field(
+        ...,
+        description=(
+            "Formalized treatment plan. Before passing to this tool, YOU MUST "
+            "convert the doctor's raw/informal treatment notes into a clear, "
+            "professional medical treatment statement (e.g. 'IV fluid therapy "
+            "with antiemetic and antibiotic course for 5 days' instead of "
+            "'هنديله محاليل ومضاد حيوي'). "
+            "The pipeline will further refine this, but provide your best "
+            "professional formalization as a first pass."
+        ),
+    )
     doctor_name:  str            = Field(..., description="Full name of the attending veterinarian (as stated in conversation)")
     doctor_notes: Optional[str]  = Field(
         default="",
         description=(
-            "Optional additional notes from the doctor to the pet owner. "
+            "Optional additional notes from the doctor to the animal owner. "
+            "If the doctor provided notes, YOU MUST rewrite them into clear, "
+            "professional medical language before passing to this tool — fix "
+            "informal phrasing, abbreviations, and spelling errors. "
+            "The pipeline will further refine this, but provide your best "
+            "professional formalization as a first pass. "
             "Leave empty or omit if no additional notes."
         ),
     )
@@ -59,12 +85,11 @@ def generate_patient_report(
     - Patient information (animal, owner, weight at this visit, visit date)
     - Formal diagnosis and treatment plan in Arabic and English
     - Condition overview, symptoms to watch, home care, prevention tips
-    - Medication information
-    - Doctor's notes section (optional)
+    - Doctor's notes section (optional — rewritten into professional Arabic)
     - VetVision branded header and footer
 
-    Content is grounded in the VetVision knowledge base (RAG) with validated
-    web search as fallback. Returns a success message with filename and download URL.
+    Content is grounded in the VetVision knowledge base (RAG) with web search
+    as fallback. Returns a success message with filename and download URL.
     """
     logger.info(
         "[Tool:generate_patient_report] Called | animal=%s (%s) | diag=%.60s",

@@ -138,6 +138,13 @@ Then follow the appropriate path:
   - Generate a professional bilingual PDF medical report
   - 'doctor_name': use the doctor's name as provided in this conversation
   - Gather all required fields before calling
+  - ⚠️ **PRIMARY FORMALIZATION (MANDATORY):** Before calling this tool, YOU MUST formalize these fields:
+    • **diagnosis**: Convert the doctor's raw/informal diagnosis into a proper veterinary medical term
+      (e.g. "Feline Panleukopenia Virus Infection" NOT "بانلوكوبينيا" or "cat has parvo")
+    • **treatment**: Convert raw treatment notes into a clear professional medical statement
+      (e.g. "IV fluid therapy with antiemetic and antibiotic course for 5 days" NOT "هنديله محاليل ومضاد حيوي")
+    • **doctor_notes**: If provided, rewrite into professional medical language — fix informal phrasing, abbreviations, and errors
+  - The pipeline will re-formalize these further, but your first pass ensures higher quality output
 
 ═══════════════════════ RESPONSE STYLE ═══════════════════════
 

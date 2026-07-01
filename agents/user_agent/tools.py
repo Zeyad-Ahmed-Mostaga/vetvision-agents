@@ -69,7 +69,7 @@ def vet_rag_search(
     """
     Search the VetVision veterinary knowledge base using Advanced RAG.
     Use this tool to find veterinary information about diseases, diet, toxins,
-    behavior, or general pet care.
+    behavior, or general Animal care.
 
     RULES:
     - 'question' MUST be in English (translate from Arabic before calling).
