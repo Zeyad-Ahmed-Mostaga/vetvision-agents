@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from config import settings
@@ -34,16 +34,17 @@ _TEMPLATES_DIR = Path(settings.report_templates_dir)
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── LLM Singleton ─────────────────────────────────────────────────────────────
-_llm: Optional[ChatGroq] = None
+_llm: Optional[ChatOpenAI] = None
 
 
-def _get_llm() -> ChatGroq:
+def _get_llm() -> ChatOpenAI:
     global _llm
     if _llm is None:
-        _llm = ChatGroq(
-            model=settings.groq_model,
+        _llm = ChatOpenAI(
+            model=settings.openrouter_model,
             temperature=0.0,
-            groq_api_key=settings.groq_api_key,
+            openai_api_base=settings.openrouter_base_url,
+            openai_api_key=settings.openrouter_api_key,
         )
     return _llm
 

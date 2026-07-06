@@ -28,24 +28,26 @@ logger = logging.getLogger(__name__)
 
 class RegisterFirstVisitInput(BaseModel):
     """Input schema for register_first_visit — new patient only."""
-    animal_name: str             = Field(..., description="Name of the animal patient")
-    animal_type: str             = Field(..., description="Type of animal (free text, e.g. 'cat', 'dog', 'parrot')")
-    owner_name:  str             = Field(..., description="Full name of the Animal owner")
-    weight_kg:   Optional[float] = Field(None, description="Animal's weight in kilograms at this visit (optional — pass null if unknown)")
-    diagnosis:   str             = Field(..., description="Clinical diagnosis for this visit")
-    treatment:   str             = Field(..., description="Treatment prescribed for this visit")
-    visit_date:  str             = Field(..., description="Date of visit in ISO format YYYY-MM-DD")
-    doctor_name: str             = Field(..., description="Full name of the attending veterinarian (as stated in conversation)")
+    animal_name:  str             = Field(..., description="Name of the animal patient")
+    animal_type:  str             = Field(..., description="Type of animal (free text, e.g. 'cat', 'dog', 'parrot')")
+    owner_name:   str             = Field(..., description="Full name of the Animal owner")
+    weight_kg:    Optional[float] = Field(None, description="Animal's weight in kilograms at this visit (optional — pass null if unknown)")
+    diagnosis:    str             = Field(..., description="Clinical diagnosis for this visit")
+    treatment:    str             = Field(..., description="Treatment prescribed for this visit")
+    doctor_notes: Optional[str]   = Field(None, description="Doctor's clinical observations, suspected conditions, or notes (optional — pass null if none)")
+    visit_date:   str             = Field(..., description="Date of visit in ISO format YYYY-MM-DD")
+    doctor_name:  str             = Field(..., description="Full name of the attending veterinarian (as stated in conversation)")
 
 
 class LogReturningVisitInput(BaseModel):
     """Input schema for log_returning_visit — existing patient only."""
-    animal_id:   str             = Field(..., description="Existing 6-character alphanumeric Animal ID (e.g. 'A3X7K9')")
-    weight_kg:   Optional[float] = Field(None, description="Animal's weight in kilograms at this visit (optional — pass null if unknown)")
-    diagnosis:   str             = Field(..., description="Clinical diagnosis for this visit")
-    treatment:   str             = Field(..., description="Treatment prescribed for this visit")
-    visit_date:  str             = Field(..., description="Date of visit in ISO format YYYY-MM-DD")
-    doctor_name: str             = Field(..., description="Full name of the attending veterinarian (as stated in conversation)")
+    animal_id:    str             = Field(..., description="Existing 6-character alphanumeric Animal ID (e.g. 'A3X7K9')")
+    weight_kg:    Optional[float] = Field(None, description="Animal's weight in kilograms at this visit (optional — pass null if unknown)")
+    diagnosis:    str             = Field(..., description="Clinical diagnosis for this visit")
+    treatment:    str             = Field(..., description="Treatment prescribed for this visit")
+    doctor_notes: Optional[str]   = Field(None, description="Doctor's clinical observations, suspected conditions, or notes (optional — pass null if none)")
+    visit_date:   str             = Field(..., description="Date of visit in ISO format YYYY-MM-DD")
+    doctor_name:  str             = Field(..., description="Full name of the attending veterinarian (as stated in conversation)")
 
     @field_validator("animal_id")
     @classmethod
@@ -79,6 +81,7 @@ def register_first_visit(
     weight_kg: Optional[float],
     diagnosis: str,
     treatment: str,
+    doctor_notes: Optional[str],
     visit_date: str,
     doctor_name: str,
 ) -> str:
@@ -109,10 +112,12 @@ def register_first_visit(
             weight_kg=weight_kg,
             diagnosis=diagnosis,
             treatment=treatment,
+            doctor_notes=doctor_notes,
             visit_date=visit_date,
             doctor_name=doctor_name,
         )
         weight_display = f"{weight_kg} kg" if weight_kg is not None else "not recorded"
+        notes_display = doctor_notes if doctor_notes else "None"
         return (
             f"✅ New patient registered successfully!\n"
             f"\n"
@@ -124,6 +129,7 @@ def register_first_visit(
             f"Weight:     {weight_display}\n"
             f"Diagnosis:  {diagnosis}\n"
             f"Treatment:  {treatment}\n"
+            f"Notes:      {notes_display}\n"
             f"Visit Date: {visit_date}\n"
             f"Doctor:     Dr. {doctor_name}"
         )
@@ -140,6 +146,7 @@ def log_returning_visit(
     weight_kg: Optional[float],
     diagnosis: str,
     treatment: str,
+    doctor_notes: Optional[str],
     visit_date: str,
     doctor_name: str,
 ) -> str:
@@ -170,10 +177,12 @@ def log_returning_visit(
             weight_kg=weight_kg,
             diagnosis=diagnosis,
             treatment=treatment,
+            doctor_notes=doctor_notes,
             visit_date=visit_date,
             doctor_name=doctor_name,
         )
         weight_display = f"{weight_kg} kg" if weight_kg is not None else "not recorded"
+        notes_display = doctor_notes if doctor_notes else "None"
         return (
             f"✅ Visit logged successfully for returning patient!\n"
             f"\n"
@@ -182,6 +191,7 @@ def log_returning_visit(
             f"Weight:       {weight_display}\n"
             f"Diagnosis:    {diagnosis}\n"
             f"Treatment:    {treatment}\n"
+            f"Notes:        {notes_display}\n"
             f"Visit Date:   {visit_date}\n"
             f"Doctor:       Dr. {doctor_name}"
         )

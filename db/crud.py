@@ -62,6 +62,7 @@ def register_new_patient(
     treatment: str,
     visit_date: str,
     doctor_name: str,
+    doctor_notes: Optional[str] = None,
 ) -> str:
     """
     Register a brand-new patient and log their first visit.
@@ -93,6 +94,7 @@ def register_new_patient(
             animal_id=animal_id,
             diagnosis=diagnosis,
             treatment=treatment,
+            doctor_notes=doctor_notes,
             weight_kg=weight_kg,
             visit_date=_parse_date(visit_date),
             doctor_name=doctor_name,
@@ -123,6 +125,7 @@ def add_visit_to_existing(
     treatment: str,
     visit_date: str,
     doctor_name: str,
+    doctor_notes: Optional[str] = None,
 ) -> dict:
     """
     Append a new visit to an existing patient record identified by their Animal ID.
@@ -163,6 +166,7 @@ def add_visit_to_existing(
             animal_id=animal_id,
             diagnosis=diagnosis,
             treatment=treatment,
+            doctor_notes=doctor_notes,
             weight_kg=weight_kg,
             visit_date=_parse_date(visit_date),
             doctor_name=doctor_name,
@@ -213,12 +217,13 @@ def get_patient_history(animal_id: str) -> Optional[dict]:
         visits_data = []
         for v in patient.visits:
             visits_data.append({
-                "visit_id":    v.visit_id,
-                "diagnosis":   v.diagnosis,
-                "treatment":   v.treatment,
-                "weight_kg":   v.weight_kg,
-                "visit_date":  v.visit_date.isoformat() if v.visit_date else "N/A",
-                "doctor_name": v.doctor_name,
+                "visit_id":      v.visit_id,
+                "diagnosis":     v.diagnosis,
+                "treatment":     v.treatment,
+                "doctor_notes":  v.doctor_notes,
+                "weight_kg":     v.weight_kg,
+                "visit_date":    v.visit_date.isoformat() if v.visit_date else "N/A",
+                "doctor_name":   v.doctor_name,
             })
 
         return {
@@ -265,12 +270,14 @@ def format_patient_history(animal_id: str) -> str:
     else:
         for i, v in enumerate(data["visits"], 1):
             weight_str = f"{v['weight_kg']} kg" if v["weight_kg"] is not None else "N/A"
+            notes_str = v['doctor_notes'] if v.get('doctor_notes') else "None"
             lines.extend([
                 "",
                 f"  ── Visit {i} ({v['visit_date']}) ──",
                 f"  Weight:     {weight_str}",
                 f"  Diagnosis:  {v['diagnosis']}",
                 f"  Treatment:  {v['treatment']}",
+                f"  Notes:      {notes_str}",
                 f"  Doctor:     {v['doctor_name']}",
             ])
 

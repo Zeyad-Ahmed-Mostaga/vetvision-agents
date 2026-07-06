@@ -25,7 +25,7 @@ import logging
 import time
 from typing import List
 
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain_cohere import CohereRerank
 from langchain_classic.retrievers import ContextualCompressionRetriever
 from langchain_core.prompts import ChatPromptTemplate
@@ -50,10 +50,11 @@ _cohere_reranker = None
 def _get_utility_llm():
     global _utility_llm
     if _utility_llm is None:
-        _utility_llm = ChatGroq(
-            model=settings.utility_model,
+        _utility_llm = ChatOpenAI(
+            model=settings.openrouter_model,
             temperature=settings.utility_temperature,
-            groq_api_key=settings.groq_api_key,
+            openai_api_base=settings.openrouter_base_url,
+            openai_api_key=settings.openrouter_api_key,
         )
     return _utility_llm
 

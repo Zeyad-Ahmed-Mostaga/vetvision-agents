@@ -64,9 +64,10 @@ class Visit(Base):
 
     visit_id    = Column(String(36),  primary_key=True, default=_new_visit_id)
     animal_id   = Column(String(6),   ForeignKey("patients.animal_id"), nullable=False)
-    diagnosis   = Column(Text,        nullable=False)
-    treatment   = Column(Text,        nullable=False)
-    weight_kg   = Column(Float,       nullable=True)    # weight tracked per visit
+    diagnosis    = Column(Text,        nullable=False)
+    treatment    = Column(Text,        nullable=False)
+    doctor_notes = Column(Text,        nullable=True)    # clinical observations, suspected conditions, extra notes
+    weight_kg    = Column(Float,       nullable=True)    # weight tracked per visit
     visit_date  = Column(Date,        nullable=False)
     doctor_name = Column(String(200), nullable=False)   # doctor who performed this visit
     created_at  = Column(DateTime,   default=datetime.utcnow)
